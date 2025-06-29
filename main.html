@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Death Stranding Material Planner</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; padding: 0; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState } = React;
+        
+        const DeathStrandingPlanner = () => {
+          const materials = {
+            Resins: [40, 80, 160, 320],
+            Metals: [50, 100, 200, 400],
+            Ceramics: [40, 80, 160, 320],
+            Chemicals: [30, 60, 120, 240],
+            'Special Alloys': [60, 120, 240, 480]
+          };
+
+          const materialColors = {
+            Resins: {
+              bg: 'bg-green-900/20',
+              border: 'border-green-700/50',
+              text: 'text-green-400',
+              pill: 'bg-green-800/40'
+            },
+            Metals: {
+              bg: 'bg-blue-900/20',
+              border: 'border-blue-700/50',
+              text: 'text-blue-400',
+              pill: 'bg-blue-800/40'
+            },
+            Ceramics: {
+              bg: 'bg-gray-100/10',
+              border: 'border-gray-400/50',
+              text: 'text-gray-300',
+              pill: 'bg-gray-600/40'
+            },
+            Chemicals: {
+              bg: 'bg-red-900/20',
+              border: 'border-red-700/50',
+              text: 'text-red-400',
+              pill: 'bg-red-800/40'
+            },
+            'Special Alloys': {
+              bg: 'bg-gray-900/40',
+              border: 'border-gray-700',
+              text: 'text-gray-500',
+              pill: 'bg-gray-800'
+            }
+          };
+
+          const [requirements, setRequirements] = useState({
+            Resins: '',
+            Metals: '',
+            Ceramics: '',
+            Chemicals: '',
+            'Special Alloys': ''
+          });
+
+          const [results, setResults] = useState(null);
+
+          const findOptimalPackages = (required, packages) => {
+            if (required === 0) return { packages: [], total: 0, count: 0, waste: 0 };
+            
+            const sortedPackages = [...packages].sort((a, b) => b - a);
+            
+            const maxAmount = required + sortedPackages[0];
+            const dp = new Array(maxAmount + 1).fill(null);
+            dp[0] = { packages: 0, parent: -1, packageUsed: -1 };
+            
+            for (let i = 1; i <= maxAmount; i++) {
+              for (let j = 0; j < sortedPackages.length; j++) {
+                const pkg = sortedPackages[j];
+                if (i >= pkg && dp[i - pkg] !== null) {
+                  const newPackages = dp[i - pkg].packages + 1;
+                  if (dp[i] === null || newPackages < dp[i].packages) {
+                    dp[i] = {
+                      packages: newPackages,
+                      parent: i - pkg,
+                      packageUsed: pkg
+                    };
+                  }
+                }
+              }
+            }
+            
+            let bestAmount = -1;
+            let minWaste = Infinity;
+            let minPackages = Infinity;
+            
+            for (let i = required; i <= maxAmount; i++) {
+              if (dp[i] !== null) {
+                const waste = i - required;
+                if (waste < minWaste || (waste === minWaste && dp[i].packages < minPackages)) {
+                  minWaste = waste;
+                  minPackages = dp[i].packages;
+                  bestAmount = i;
+                }
+              }
+            }
+            
+            const usedPackages = [];
+            let current = bestAmount;
+            
+            while (current > 0 && dp[current].parent !== -1) {
+              usedPackages.push(dp[current].packageUsed);
+              current = dp[current].parent;
+            }
+            
+            const packageCount = {};
+            usedPackages.forEach(pkg => {
+              packageCount[pkg] = (packageCount[pkg] || 0) + 1;
+            });
+            
+            return {
+              packages: Object.entries(packageCount).map(([size, count]) => ({
+                size: parseInt(size),
+                count
+              })),
+              total: bestAmount,
+              count: usedPackages.length,
+              waste: minWaste
+            };
+          };
+
+          const calculateOptimalDelivery = () => {
+            const optimizedResults = {};
+            let totalPackages = 0;
+            let totalWaste = 0;
+            
+            Object.entries(requirements).forEach(([material, reqStr]) => {
+              const required = parseInt(reqStr) || 0;
+              if (required > 0) {
+                const optimal = findOptimalPackages(required, materials[material]);
+                optimizedResults[material] = {
+                  required,
+                  ...optimal
+                };
+                totalPackages += optimal.count;
+                totalWaste += optimal.waste;
+              }
+            });
+            
+            setResults({
+              materials: optimizedResults,
+              totalPackages,
+              totalWaste
+            });
+          };
+
+          const handleInputChange = (material, value) => {
+            setRequirements(prev => ({
+              ...prev,
+              [material]: value
+            }));
+          };
+
+          return (
+            <div className="min-h-screen bg-gray-900 text-gray-100 p-4">
+              <div className="max-w-4xl mx-auto">
+                <div className="bg-gray-800 rounded-lg shadow-2xl p-6 mb-6">
+                  <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+                    📦 Death Stranding Material Planner
+                  </h1>
+                  <p className="text-gray-400">
+                    Optimize your deliveries by minimizing material waste and package count
+                  </p>
+                </div>
+
+                <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    ⚠️ Material Requirements
+                  </h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Object.entries(materials).map(([material, packages]) => (
+                      <div key={material} className={`${materialColors[material].bg} rounded-lg p-4 border ${materialColors[material].border}`}>
+                        <label className={`block mb-2 font-medium ${materialColors[material].text}`}>
+                          {material}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={requirements[material]}
+                          onChange={(e) => handleInputChange(material, e.target.value)}
+                          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          placeholder="0"
+                        />
+                        <div className="mt-2 text-xs text-gray-400">
+                          Available: {packages.join(', ')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <button
+                    onClick={calculateOptimalDelivery}
+                    className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    🧮 Calculate Optimal Delivery
+                  </button>
+                </div>
+
+                {results && (
+                  <div className="bg-gray-800 rounded-lg shadow-xl p-6">
+                    <h2 className="text-xl font-semibold mb-4">Delivery Plan</h2>
+                    
+                    <div className="mb-6 grid grid-cols-2 gap-4">
+                      <div className="bg-blue-900/30 rounded-lg p-4 border border-blue-700">
+                        <div className="text-3xl font-bold text-blue-400">{results.totalPackages}</div>
+                        <div className="text-sm text-gray-400">Total Packages</div>
+                      </div>
+                      <div className="bg-orange-900/30 rounded-lg p-4 border border-orange-700">
+                        <div className="text-3xl font-bold text-orange-400">{results.totalWaste}</div>
+                        <div className="text-sm text-gray-400">Total Materials Wasted</div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {Object.entries(results.materials).map(([material, data]) => (
+                        <div key={material} className={`${materialColors[material].bg} rounded-lg p-4 border ${materialColors[material].border}`}>
+                          <div className="flex justify-between items-start mb-2">
+                            <h3 className={`font-semibold text-lg ${materialColors[material].text}`}>{material}</h3>
+                            <div className="text-right">
+                              <div className="text-sm text-gray-400">
+                                Required: {data.required} | Delivered: {data.total}
+                              </div>
+                              <div className="text-sm text-orange-400">
+                                Waste: {data.waste}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            {data.packages
+                              .sort((a, b) => b.size - a.size)
+                              .map((pkg, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`${materialColors[material].pill} px-3 py-1 rounded-full text-sm flex items-center gap-2`}
+                                >
+                                  <span className="font-mono">{pkg.size}</span>
+                                  {pkg.count > 1 && (
+                                    <span className="text-xs text-gray-400">×{pkg.count}</span>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="mt-8 text-center text-gray-500 text-sm">
+                  Keep on keeping on! 👍
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        ReactDOM.render(<DeathStrandingPlanner />, document.getElementById('root'));
+    </script>
+</body>
+</html>
